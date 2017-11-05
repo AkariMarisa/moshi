@@ -244,6 +244,22 @@ class KotlinJsonAdapterTest {
 
   class ConstructorParameterWithJsonName(@Json(name = "key a") var a: Int, var b: Int)
 
+  @Test fun constructorParameterWithJsonNameOnSupertype() {
+    open class Child : SupertypeConstructorParameterWithJsonName()
+    class Grandchild : Child()
+    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+
+    val childAdapter = moshi.adapter(Child::class.java)
+    assertThat(childAdapter.toJson(Child())).isEqualTo("{\"key a\":-1}")
+    assertThat(childAdapter.fromJson("{\"key a\":-1}")!!.a).isEqualTo(-1)
+
+    val grandChildAdapter = moshi.adapter(Grandchild::class.java)
+    assertThat(grandChildAdapter.toJson(Grandchild())).isEqualTo("{\"key a\":-1}")
+    assertThat(grandChildAdapter.fromJson("{\"key a\":-1}")!!.a).isEqualTo(-1)
+  }
+
+  open class SupertypeConstructorParameterWithJsonName(@Json(name = "key a") var a: Int = -1)
+
   @Test fun propertyWithJsonName() {
     val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
     val jsonAdapter = moshi.adapter(PropertyWithJsonName::class.java)

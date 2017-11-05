@@ -26,6 +26,7 @@ import kotlin.reflect.KProperty1
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
+import kotlin.reflect.full.superclasses
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.jvm.javaType
@@ -176,7 +177,12 @@ class KotlinJsonAdapterFactory : JsonAdapter.Factory {
       if (parameter != null) {
         allAnnotations += parameter.annotations
         if (jsonAnnotation == null) {
-          jsonAnnotation = parameter.findAnnotation<Json>()
+          jsonAnnotation = parameter.findAnnotation()
+        }
+      } else {
+        if (jsonAnnotation == null) {
+          jsonAnnotation =
+              rawType.findSuperclassConstructorParameterWithName(property.name)?.findAnnotation()
         }
       }
 
@@ -193,7 +199,7 @@ class KotlinJsonAdapterFactory : JsonAdapter.Factory {
     for (parameter in constructor.parameters) {
       val binding = bindingsByName.remove(parameter.name)
       if (binding == null && !parameter.isOptional) {
-        throw IllegalArgumentException("No property for required constructor ${parameter}")
+        throw IllegalArgumentException("No property for required constructor $parameter")
       }
       bindings += binding
     }
@@ -202,5 +208,28 @@ class KotlinJsonAdapterFactory : JsonAdapter.Factory {
 
     val options = JsonReader.Options.of(*bindings.map { it?.name ?: "\u0000" }.toTypedArray())
     return KotlinJsonAdapter(constructor, bindings, options).nullSafe()
+  }
+
+  private fun Class<*>.findSuperclassConstructorParameterWithName(name: String): KParameter? {
+    var superclasses = kotlin.superclasses
+    do {
+      run {
+        for (superclass in superclasses) {
+          val primaryConstructor = superclass.primaryConstructor
+          if (primaryConstructor != null) {
+            for (parameter in primaryConstructor.parameters) {
+              if (parameter.name == name) {
+                return parameter
+              }
+            }
+            superclasses = superclass.superclasses
+            return@run
+          }
+        }
+        // No superclasses with a primary constructor.
+        return null
+      }
+    } while (superclasses.isNotEmpty())
+    return null
   }
 }
